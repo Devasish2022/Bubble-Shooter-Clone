@@ -1,0 +1,172 @@
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    background: #05060a;
+    color: #fff;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+}
+
+/* Wraps canvas + overlays + HUD */
+.game-wrapper {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+canvas {
+    background: radial-gradient(circle at top, #202534 0%, #04040a 80%);
+    border-radius: 16px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.7);
+    touch-action: none;
+    width: 100vw;
+    max-width: 480px;
+    height: auto;
+}
+
+/* Top HUD */
+.hud {
+    width: 100%;
+    max-width: 480px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+    padding: 2px 4px 0 4px;
+    gap: 4px;
+}
+
+.hud-left {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.pill {
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    white-space: nowrap;
+}
+
+/* Buttons */
+.btn {
+    padding: 4px 10px;
+    font-size: 13px;
+    border-radius: 999px;
+    border: none;
+    cursor: pointer;
+    background: linear-gradient(135deg, #ffcc00, #ffdf4d);
+    color: #000;
+    font-weight: 600;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.6);
+    transition: transform 0.1s ease, box-shadow 0.1s ease, background 0.1s ease;
+    white-space: nowrap;
+}
+
+.btn:active {
+    transform: translateY(1px);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+    background: linear-gradient(135deg, #ffe470, #ffdf4d);
+}
+
+.btn.secondary {
+    background: rgba(255, 255, 255, 0.06);
+    color: #fff;
+    box-shadow: none;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.btn.secondary:active {
+    background: rgba(255, 255, 255, 0.12);
+    transform: translateY(1px);
+}
+
+/* Hints below canvas */
+.hint {
+    font-size: 11px;
+    opacity: 0.7;
+    text-align: center;
+}
+
+.hint-secondary {
+    opacity: 0.5;
+}
+
+@media (max-height: 600px) {
+    body {
+        align-items: flex-start;
+        padding-top: 10px;
+    }
+}
+
+/* Overlays (main menu + pause) */
+
+.overlay {
+    position: absolute;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+}
+
+.overlay.visible {
+    display: flex;
+    pointer-events: auto;
+}
+
+.overlay-panel {
+    width: 80%;
+    max-width: 320px;
+    padding: 16px 18px 14px;
+    border-radius: 16px;
+    background: rgba(5, 6, 12, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.8);
+    text-align: center;
+}
+
+.overlay-panel h1 {
+    font-size: 20px;
+    margin-bottom: 4px;
+}
+
+.overlay-panel p {
+    font-size: 13px;
+    opacity: 0.8;
+    margin-bottom: 10px;
+}
+
+.overlay-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.overlay-small {
+    font-size: 12px;
+    margin-top: 4px;
+    opacity: 0.7;
+}
+
+/* Footer credit */
+.footer {
+    margin: 8px 0 10px;
+    font-size: 11px;
+    opacity: 0.8;
+    text-align: center;
+}
