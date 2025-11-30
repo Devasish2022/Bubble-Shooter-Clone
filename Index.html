@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Bubble Shooter</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background: #111;
+            color: #fff;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+
+        .game-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
+
+        canvas {
+            background: radial-gradient(circle at top, #222 0%, #000 80%);
+            border-radius: 16px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.6);
+            touch-action: none;
+            /* prevent scrolling while aiming */
+            width: 100vw;
+            max-width: 480px;
+            height: auto;
+        }
+
+        .hud {
+            width: 100%;
+            max-width: 480px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 14px;
+            padding: 4px 4px 0 4px;
+        }
+
+        .btn {
+            padding: 6px 12px;
+            font-size: 14px;
+            border-radius: 999px;
+            border: none;
+            cursor: pointer;
+            background: #ffcc00;
+            color: #000;
+            font-weight: 600;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+            transition: transform 0.1s ease, box-shadow 0.1s ease, background 0.1s ease;
+        }
+
+        .btn:active {
+            transform: translateY(1px);
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+            background: #ffdf4d;
+        }
+
+        .hint {
+            font-size: 12px;
+            opacity: 0.7;
+            text-align: center;
+        }
+
+        @media (max-height: 600px) {
+            body {
+                align-items: flex-start;
+                padding-top: 10px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="game-wrapper">
+        <div class="hud">
+            <div id="statusText">Aim &amp; shoot!</div>
+            <button class="btn" id="restartBtn">Restart</button>
+        </div>
+        <canvas id="gameCanvas" width="480" height="720"></canvas>
+        <div class="hint">
+            Laptop: move mouse to aim, click to shoot.<br />
+            Mobile: drag to aim, lift finger to shoot.
+        </div>
+    </div>
+
+    <script>
+        // ====================== SETUP ======================
+
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        const statusText = document.getElementById("statusText");
+        const restartBtn = document.getElementById("restartBtn");
+
+        const WIDTH = canvas.width;
+        const HEIGHT = canvas.height;
+
+        const BUBBLE_RADIUS = 16;
+        const SHOOTER_Y = HEIGHT - 60;
+        const BUBBLE_SPEED = 8;
+
+        const COLORS = ["#ff595e", "#ffca3a", "#8ac926", "#1982c4", "#6a4c93"];
+
+        let bubbles = [];      // static bubbles in the arena
+        let currentBubble = null;
+        let nextBubbleColor = null;
+
+        let aimPoint = { x: WIDTH / 2, y: HEIGHT / 2 };
+        let aimDir = { x: 0, y: -1 }; // unified aim direction
+        let isAiming = false;
+        let gameOver = false;
+        let win = false;
+        let shotCount = 0;
+
+        // For matching / cluster detection
+        const NEIGHBOR_DISTANCE = BUBBLE_RADIUS * 2.3;
+        const NEIGHBOR_DIST_SQ = NEIGHBOR_DISTANCE * NEIGHBOR_DISTANCE;
+
+        // For trajectory preview
+        let previewPath = [];
+        const TRAJECTORY_STEP = 8;
+        const MAX_TRAJECTORY_STEPS = 1200;
+
+        function randColor() {
+            return COLORS[Math.floor(Math.random() * COLORS.length)];
+        }
+
+        // ====================== INITIAL GRID ======================
+
+        function createInitialGrid() {
+            bubbles = [];
+            const rows = 6;
+            const r = BUBBLE_RADIUS;
+            for (let row = 0; row < rows; row++) {
+                const isOffset = row % 2 === 1;
+                const offset = isOffset ? r : 0;
+                for (let x = r + offset; x <= WIDTH - r; x += 2 * r) {
+                    const y = r + row * (r * 1.75);
+                    bubbles.push({
+                        x,
+                        y,
+                        radius: r,
+                        color: randColor()
+                    });
+                }
+            }
+        }
+
+        // ====================== GAME STATE ======================
+
+        function spawnCurrentBubble() {
+            const color = nextBubbleColor || randColor();
+            currentBubble = {
+                x: WIDTH / 2,
+                y: SHOOTER_Y,
+                radius: BUBBLE_RADIUS,
+                color: color,
+                dx: 0,
+                dy: 0,
+                moving: false
+            };
+            nextBubbleColor = randColor();
+        }
+
+        function resetGame() {
+            gameOver = false;
+            win = false;
+            shotCount = 0;
+            statusText.textContent = "Aim & shoot!";
+            createInitialGrid();
+            nextBubbleColor = randColor();
+            spawnCurrentBubble();
+        }
+
+        restartBtn.addEventListener("click", resetGame);
+
+        // ====================== INPUT HANDLING ======================
+
+        function getCanvasPos(evt) {
+            const rect = canvas.getBoundingClientRect();
+            let clientX, clientY;
+            if (evt.touches && evt.touches.length > 0) {
+                clientX = evt.touches[0].clientX;
+                clientY = evt.touches[0].clientY;
+            } else if (evt.changedTouches && evt.changedTouches.length > 0) {
+                clientX = evt.changedTouches[0].clientX;
+                clientY = evt.changedTouches[0].clientY;
+            } else {
+                clientX = evt.clientX;
+                clientY = evt.clientY;
+            }
+            const x = ((clientX - rect.left) / rect.width) * WIDTH;
+            const y = ((clientY - rect.top) / rect.height) * HEIGHT;
+            return { x, y };
+        }
+
+        function updateAimDirection(pos) {
+            const shooterX = WIDTH / 2;
+            const shooterY = SHOOTER_Y;
+
+            let dx = pos.x - shooterX;
+            let dy = pos.y - shooterY;
+
+            // Don't allow aiming below the cannon
+            const minUp = -40;
+            if (dy > minUp) dy = minUp;
+
+            const len = Math.sqrt(dx * dx + dy * dy) || 1;
+            dx /= len;
+            dy /= len;
+
+            aimDir.x = dx;
+            aimDir.y = dy;
+            aimPoint = pos;
+        }
+
+        function startAim(evt) {
+            if (gameOver || !currentBubble || currentBubble.moving) return;
+            evt.preventDefault();
+            isAiming = true;
+            const pos = getCanvasPos(evt);
+            updateAimDirection(pos);
+        }
+
+        function moveAim(evt) {
+            if (!isAiming) return;
+            evt.preventDefault();
+            const pos = getCanvasPos(evt);
+            updateAimDirection(pos);
+        }
+
+        function shoot(evt) {
+            if (!isAiming || !currentBubble || currentBubble.moving || gameOver) return;
+            evt.preventDefault();
+            isAiming = false;
+
+            currentBubble.dx = aimDir.x * BUBBLE_SPEED;
+            currentBubble.dy = aimDir.y * BUBBLE_SPEED;
+            currentBubble.moving = true;
+            shotCount++;
+        }
+
+        canvas.addEventListener("mousedown", startAim);
+        canvas.addEventListener("mousemove", moveAim);
+        canvas.addEventListener("mouseup", shoot);
+        canvas.addEventListener("mouseleave", () => (isAiming = false));
+
+        canvas.addEventListener("touchstart", startAim, { passive: false });
+        canvas.addEventListener("touchmove", moveAim, { passive: false });
+        canvas.addEventListener("touchend", shoot, { passive: false });
+        canvas.addEventListener("touchcancel", () => (isAiming = false));
+
+        // ====================== COLLISION & MATCHING ======================
+
+        function distanceSq(a, b) {
+            const dx = a.x - b.x;
+            const dy = a.y - b.y;
+            return dx * dx + dy * dy;
+        }
+
+        // Try to snap the moving bubble into one of 6 hex neighbors around collided bubble
+        function findSnapPosition(collided, movingBubble) {
+            const candidates = [];
+            const r2 = BUBBLE_RADIUS * 2;
+
+            for (let i = 0; i < 6; i++) {
+                const angle = (Math.PI / 3) * i; // 0, 60, 120, ...
+                const x = collided.x + Math.cos(angle) * r2;
+                const y = collided.y + Math.sin(angle) * r2;
+                candidates.push({ x, y });
+            }
+
+            let best = null;
+            const minDistFromTop = BUBBLE_RADIUS;
+
+            for (const pos of candidates) {
+                // Keep inside horizontal bounds
+                if (pos.x < BUBBLE_RADIUS || pos.x > WIDTH - BUBBLE_RADIUS) continue;
+                // Don't go above the very top (though it's rare)
+                if (pos.y < minDistFromTop) continue;
+
+                // Check overlap with existing bubbles
+                let overlap = false;
+                for (const b of bubbles) {
+                    if (b === collided) continue;
+                    const minDist = (BUBBLE_RADIUS * 2) - 2;
+                    if (distanceSq(pos, b) < minDist * minDist) {
+                        overlap = true;
+                        break;
+                    }
+                }
+                if (overlap) continue;
+
+                // Choose the candidate closest to where the moving bubble was when collision happened
+                const distToMoving = (pos.x - movingBubble.x) ** 2 + (pos.y - movingBubble.y) ** 2;
+                if (!best || distToMoving < best.dist) {
+                    best = { pos, dist: distToMoving };
+                }
+            }
+
+            return best ? best.pos : null;
+        }
+
+        function attachCurrentBubble(collidedWith = null) {
+            if (!currentBubble) return;
+
+            let placedX = currentBubble.x;
+            let placedY = currentBubble.y;
+
+            if (collidedWith) {
+                const snapPos = findSnapPosition(collidedWith, currentBubble);
+                if (snapPos) {
+                    placedX = snapPos.x;
+                    placedY = snapPos.y;
+                } else {
+                    // Fallback: behind the collided bubble if no slot found
+                    const angle = Math.atan2(currentBubble.dy, currentBubble.dx);
+                    const dist = currentBubble.radius * 2;
+                    placedX = collidedWith.x - Math.cos(angle) * dist;
+                    placedY = collidedWith.y - Math.sin(angle) * dist;
+                }
+            } else {
+                // Hit top, clamp to top row
+                if (placedY < BUBBLE_RADIUS) placedY = BUBBLE_RADIUS;
+            }
+
+            currentBubble.moving = false;
+            const placedBubble = {
+                x: placedX,
+                y: placedY,
+                radius: currentBubble.radius,
+                color: currentBubble.color
+            };
+            bubbles.push(placedBubble);
+
+            handleMatches(placedBubble);
+
+            // Check win
+            if (bubbles.length === 0) {
+                win = true;
+                gameOver = true;
+                statusText.textContent = `You cleared all bubbles in ${shotCount} shots! 🎉`;
+                return;
+            }
+            // Check lose
+            if (checkLose()) {
+                gameOver = true;
+                statusText.textContent = "Game Over! Bubbles reached the bottom.";
+                return;
+            }
+
+            spawnCurrentBubble();
+        }
+
+        function handleMatches(sourceBubble) {
+            const matchGroup = floodFillColor(sourceBubble);
+            if (matchGroup.length >= 3) {
+                const toRemove = new Set(matchGroup);
+                bubbles = bubbles.filter(b => !toRemove.has(b));
+
+                removeFloatingBubbles();
+            }
+        }
+
+        function floodFillColor(start) {
+            const visited = new Set();
+            const result = [];
+            const queue = [];
+
+            queue.push(start);
+            visited.add(start);
+
+            while (queue.length > 0) {
+                const b = queue.shift();
+                result.push(b);
+                for (const other of bubbles) {
+                    if (visited.has(other)) continue;
+                    if (other.color !== start.color) continue;
+                    if (distanceSq(b, other) <= NEIGHBOR_DIST_SQ) {
+                        visited.add(other);
+                        queue.push(other);
+                    }
+                }
+            }
+
+            return result;
+        }
+
+        function removeFloatingBubbles() {
+            const topConnected = new Set();
+            const queue = [];
+
+            for (const b of bubbles) {
+                if (b.y <= BUBBLE_RADIUS * 1.5) {
+                    topConnected.add(b);
+                    queue.push(b);
+                }
+            }
+
+            while (queue.length > 0) {
+                const b = queue.shift();
+                for (const other of bubbles) {
+                    if (topConnected.has(other)) continue;
+                    if (distanceSq(b, other) <= NEIGHBOR_DIST_SQ) {
+                        topConnected.add(other);
+                        queue.push(other);
+                    }
+                }
+            }
+
+            bubbles = bubbles.filter(b => topConnected.has(b));
+        }
+
+        function checkLose() {
+            for (const b of bubbles) {
+                if (b.y + b.radius >= SHOOTER_Y - 5) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // ====================== TRAJECTORY PREVIEW ======================
+
+        function computeTrajectory() {
+            previewPath = [];
+            if (!currentBubble || currentBubble.moving || gameOver) return;
+
+            let pos = { x: currentBubble.x, y: currentBubble.y };
+            let dir = { x: aimDir.x, y: aimDir.y };
+
+            previewPath.push({ x: pos.x, y: pos.y });
+
+            const collideDistSq = (BUBBLE_RADIUS * 2) ** 2;
+
+            for (let i = 0; i < MAX_TRAJECTORY_STEPS; i++) {
+                pos.x += dir.x * TRAJECTORY_STEP;
+                pos.y += dir.y * TRAJECTORY_STEP;
+
+                // Wall bounce
+                if (pos.x <= BUBBLE_RADIUS) {
+                    pos.x = BUBBLE_RADIUS;
+                    dir.x *= -1;
+                } else if (pos.x >= WIDTH - BUBBLE_RADIUS) {
+                    pos.x = WIDTH - BUBBLE_RADIUS;
+                    dir.x *= -1;
+                }
+
+                // Top hit
+                if (pos.y <= BUBBLE_RADIUS) {
+                    pos.y = BUBBLE_RADIUS;
+                    previewPath.push({ x: pos.x, y: pos.y });
+                    break;
+                }
+
+                // Check predicted hit with a bubble
+                let hit = false;
+                for (const b of bubbles) {
+                    const dsq = (pos.x - b.x) ** 2 + (pos.y - b.y) ** 2;
+                    if (dsq <= collideDistSq * 0.9) {
+                        hit = true;
+                        break;
+                    }
+                }
+
+                previewPath.push({ x: pos.x, y: pos.y });
+                if (hit) break;
+            }
+        }
+
+        // ====================== UPDATE LOOP ======================
+
+        function update() {
+            if (gameOver) return;
+
+            if (currentBubble && currentBubble.moving) {
+                currentBubble.x += currentBubble.dx;
+                currentBubble.y += currentBubble.dy;
+
+                // Bounce on walls
+                if (currentBubble.x - currentBubble.radius <= 0) {
+                    currentBubble.x = currentBubble.radius;
+                    currentBubble.dx *= -1;
+                } else if (currentBubble.x + currentBubble.radius >= WIDTH) {
+                    currentBubble.x = WIDTH - currentBubble.radius;
+                    currentBubble.dx *= -1;
+                }
+
+                // Hit top
+                if (currentBubble.y - currentBubble.radius <= 0) {
+                    currentBubble.y = currentBubble.radius;
+                    attachCurrentBubble();
+                    return;
+                }
+
+                // Hit other bubbles
+                const collideDistSq = (currentBubble.radius * 2) ** 2;
+                for (const b of bubbles) {
+                    if (distanceSq(currentBubble, b) <= collideDistSq * 0.9) {
+                        attachCurrentBubble(b);
+                        return;
+                    }
+                }
+            }
+        }
+
+        // ====================== RENDERING ======================
+
+        function drawBubble(b) {
+            ctx.beginPath();
+            ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
+            ctx.closePath();
+            const gradient = ctx.createRadialGradient(
+                b.x - b.radius * 0.4,
+                b.y - b.radius * 0.4,
+                b.radius * 0.2,
+                b.x,
+                b.y,
+                b.radius
+            );
+            gradient.addColorStop(0, "#ffffff");
+            gradient.addColorStop(0.3, b.color);
+            gradient.addColorStop(1, "#000000");
+            ctx.fillStyle = gradient;
+            ctx.fill();
+            ctx.strokeStyle = "rgba(255,255,255,0.3)";
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+        }
+
+        function drawShooter() {
+            const baseX = WIDTH / 2;
+            const baseY = SHOOTER_Y + 16;
+
+            ctx.save();
+            ctx.translate(baseX, baseY);
+
+            // Base
+            ctx.fillStyle = "#333";
+            ctx.beginPath();
+            ctx.arc(0, 0, 28, Math.PI, 0, false);
+            ctx.closePath();
+            ctx.fill();
+
+            // Cannon barrel rotated using aimDir
+            const angle = Math.atan2(aimDir.y, aimDir.x);
+            ctx.save();
+            ctx.translate(0, -16);
+            ctx.rotate(angle);
+            ctx.fillStyle = "#555";
+            if (ctx.roundRect) {
+                ctx.beginPath();
+                ctx.roundRect(0, -6, 40, 12, 6);
+                ctx.fill();
+            } else {
+                ctx.fillRect(0, -6, 40, 12);
+            }
+            ctx.restore();
+
+            ctx.restore();
+        }
+
+        function drawTrajectory() {
+            if (previewPath.length < 2) return;
+
+            ctx.save();
+            ctx.strokeStyle = "rgba(255,255,255,0.3)";
+            ctx.setLineDash([6, 6]);
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(previewPath[0].x, previewPath[0].y);
+            for (let i = 1; i < previewPath.length; i++) {
+                ctx.lineTo(previewPath[i].x, previewPath[i].y);
+            }
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.restore();
+        }
+
+        function drawNextBubblePreview() {
+            if (!nextBubbleColor) return;
+            const r = BUBBLE_RADIUS * 0.8;
+            const x = WIDTH - 50;
+            const y = HEIGHT - 40;
+            ctx.font = "12px system-ui";
+            ctx.fillStyle = "#ffffffcc";
+            ctx.textAlign = "right";
+            ctx.fillText("Next", WIDTH - 12, HEIGHT - 60);
+            const bubble = { x, y, radius: r, color: nextBubbleColor };
+            drawBubble(bubble);
+        }
+
+        function drawHUDOverlay() {
+            if (gameOver) {
+                ctx.fillStyle = "rgba(0,0,0,0.6)";
+                ctx.fillRect(0, HEIGHT / 2 - 60, WIDTH, 120);
+                ctx.fillStyle = "#fff";
+                ctx.textAlign = "center";
+                ctx.font = "24px system-ui";
+                ctx.fillText(win ? "You Win!" : "Game Over", WIDTH / 2, HEIGHT / 2 - 10);
+                ctx.font = "16px system-ui";
+                ctx.fillText(
+                    "Tap or click Restart to play again",
+                    WIDTH / 2,
+                    HEIGHT / 2 + 20
+                );
+            } else {
+                ctx.fillStyle = "#ffffffcc";
+                ctx.textAlign = "left";
+                ctx.font = "14px system-ui";
+                ctx.fillText(`Shots: ${shotCount}`, 10, HEIGHT - 20);
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, WIDTH, HEIGHT);
+
+            // Recompute trajectory for current aim
+            computeTrajectory();
+
+            // Shooter behind
+            drawShooter();
+
+            // Existing bubbles
+            for (const b of bubbles) {
+                drawBubble(b);
+            }
+
+            // Current bubble in front (always visible)
+            if (currentBubble) {
+                drawBubble(currentBubble);
+            }
+
+            // Trajectory on top so it's clearly visible
+            drawTrajectory();
+
+            drawNextBubblePreview();
+            drawHUDOverlay();
+        }
+
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // ====================== START ======================
+
+        resetGame();
+        gameLoop();
+    </script>
+</body>
+
+</html>
