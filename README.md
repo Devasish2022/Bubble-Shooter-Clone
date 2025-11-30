@@ -36,12 +36,3 @@ You aim, bounce shots off the side walls, match colors, and clear all bubbles wh
 - Lightweight & dependency-free (no frameworks)
 
 ---
-
-## 🧩 Project Structure
-
-```text
-bubble-shooter/
-  index.html   # Layout, HUD, overlays, footer
-  styles.css   # Visual styling, layout, responsive tweaks
-  game.js      # Game logic, rendering, input, audio
-  README.md    # Project documentation
