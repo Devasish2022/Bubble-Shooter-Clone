@@ -10,7 +10,9 @@ You aim, bounce shots off the side walls, match colors, and clear all bubbles wh
 In Game Screenshot :
 
 <img width="523" height="754" alt="image" src="https://github.com/user-attachments/assets/623fd97b-1dff-47d1-844b-43805d87af6e" />
+<p align="center"> <strong> <a href="https://devasish2022.github.io/Bubble-Shooter-Clone/" target="_blank"> ▶ Play Live Demo </a> </strong> </p>
 
+---
 
 ## 🚀 Features
 
