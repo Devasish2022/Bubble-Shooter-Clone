@@ -1,7 +1,7 @@
 # 🎮 Bubble Shooter – HTML5 Canvas Game  
 
 <p align="center">
-  <a href="https://devasish2022.github.io/Bubble-Shooter-Clone/" target="_blank">
+  <a href="https://devasish2022.github.io/Bubble-Shooter-Clone/">
     <img src="https://img.shields.io/badge/Play-Live%20Demo-blue?style=for-the-badge" />
   </a>
 </p>
