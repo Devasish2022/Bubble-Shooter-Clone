@@ -1,9 +1,5 @@
-# 🎮 Bubble Shooter – HTML5 Canvas Game  
-**Play Now:** 🔗 https://devasish2022.github.io/Bubble-Shooter-Clone/
-
-A classic Bubble Shooter game built with **HTML, CSS, and vanilla JavaScript**, designed to run smoothly on both **desktop and mobile browsers**.
-
-You aim, bounce shots off the side walls, match colors, and clear all bubbles while the difficulty ramps up with each level.
+🎮 Bubble Shooter – HTML5 Canvas Game
+<p align="center"> <a href="https://devasish2022.github.io/Bubble-Shooter-Clone/"> <img src="https://img.shields.io/badge/Play-Live%20Demo-blue?style=for-the-badge" /> </a> </p> <p align="center"> Classic Bubble Shooter built from scratch using <b>HTML5 Canvas + Vanilla JavaScript</b><br/> No libraries • No frameworks • Fully responsive </p>
 
 ---
 
